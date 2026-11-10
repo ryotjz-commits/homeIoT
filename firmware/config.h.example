@@ -1,0 +1,7 @@
+#pragma once
+// Salin menjadi config.h dan isi nilai rahasia. Jangan commit config.h.
+#define BLYNK_TEMPLATE_ID_VALUE "ISI_TEMPLATE_ID"
+#define BLYNK_TEMPLATE_NAME_VALUE "Novia Home"
+#define BLYNK_AUTH_TOKEN_VALUE "ISI_TOKEN_BLYNK_BARU"
+#define AP_PASSWORD_VALUE "GANTI_PASSWORD_AP"
+#define WEB_PASSWORD_VALUE "GANTI_PASSWORD_DASHBOARD"
