@@ -8,7 +8,7 @@
 
 // URL Worker, contoh: https://novia-home-api.NAMA_AKUN.workers.dev
 #define CLOUD_API_BASE "https://flat-grass-2eb1.ryo-tjz.workers.dev"
-#define DEVICE_TOKEN"flat-grass-2eb1.ryo-tjz.workers.dev"
+#define DEVICE_TOKEN"GKfhYgGea242cdshosvjshfswijgdsa"
 
 // Root CA PEM untuk validasi TLS Worker. Tempel sertifikat root CA
 // yang sesuai dengan chain sertifikat domain Worker. Jangan gunakan setInsecure().
