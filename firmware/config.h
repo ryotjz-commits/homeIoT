@@ -38,10 +38,10 @@
 // ==========================================
 
 const char* AP_NAME = "Novia-Home-Setup";
-const char* AP_PASSWORD = AP_PASSWORD_VALUE;
+const char* AP_PASSWORD = Noke0710;
 
 const char* WEB_USER = "admin";
-const char* WEB_PASSWORD = WEB_PASSWORD_VALUE;
+const char* WEB_PASSWORD = Noke0710;
 
 const uint8_t relayPins[4] = {
   26, 27, 14, 13
