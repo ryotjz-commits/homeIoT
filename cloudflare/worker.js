@@ -3,7 +3,7 @@
 // Deploy the dashboard static files separately with Cloudflare Pages; point app.js API_BASE to this Worker.
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type,Authorization" };
 const json = (data, status=200) => new Response(JSON.stringify(data), {status, headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
-const authorized = (req, token) => req.headers.get("Authorization") === `Bearer ${token}`;
+const authorized = (req, token) => Boolean(token) && req.headers.get("Authorization") === `Bearer ${token}`;
 export default {
  async fetch(req, env) {
   const url = new URL(req.url), p=url.pathname;
@@ -16,12 +16,15 @@ export default {
   }
   if (p==="/api/device/state" && req.method==="POST") {
    if (!authorized(req,env.DEVICE_TOKEN)) return json({error:"unauthorized"},401);
-   const state=await req.json(); await env.NOVIA_KV.put("state",JSON.stringify(state),{expirationTtl:120});
+   const state=await req.json();
+   if(!Array.isArray(state.relays)||state.relays.length!==4||state.relays.some(v=>typeof v!=="boolean")) return json({error:"invalid state"},400);
+   state.receivedAt=Date.now();
+   await env.NOVIA_KV.put("state",JSON.stringify(state),{expirationTtl:120});
    return json({ok:true});
   }
   if (p==="/api/state" && req.method==="GET") {
    if (!authorized(req,env.DASHBOARD_TOKEN)) return json({error:"unauthorized"},401);
-   return json(await env.NOVIA_KV.get("state","json") || {relays:[false,false,false,false],wifi:false,blynk:false,ip:""});
+   return json(await env.NOVIA_KV.get("state","json") || {relays:[false,false,false,false],wifi:false,blynk:false,ip:"",receivedAt:null});
   }
   if (p==="/api/relay" && req.method==="POST") {
    if (!authorized(req,env.DASHBOARD_TOKEN)) return json({error:"unauthorized"},401);
