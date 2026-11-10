@@ -1,13 +1,13 @@
 #pragma once
 
-#define BLYNK_TEMPLATE_ID_VALUE "TMPL6Yk8Hycr-"
-#define BLYNK_TEMPLATE_NAME_VALUE "Novia_Home"
-#define BLYNK_AUTH_TOKEN_VALUE "uUhUdnlB22cqJfKinHQu8yGMXLRbgzf1"
+#define BLYNK_TEMPLATE_ID "TMPL6Yk8Hycr-"
+#define BLYNK_TEMPLATE_NAME "Novia_Home"
+#define BLYNK_AUTH_TOKEN "uUhUdnlB22cqJfKinHQu8yGMXLRbgzf1"
 #define AP_PASSWORD_VALUE "Noke0710"
 #define WEB_PASSWORD_VALUE "Noke0710"
 
 #define CLOUD_API_BASE "https://flat-grass-2eb1.ryo-tjz.workers.dev"
-#define DEVICE_TOKEN"GKfhYgGea242cdshosvjshfswijgdsa"
+#define DEVICE_TOKEN "GKfhYgGea242cdshosvjshfswijgdsa"
 
 #define CLOUD_ROOT_CA R"CERT(
 -----BEGIN CERTIFICATE-----
