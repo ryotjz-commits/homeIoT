@@ -1,0 +1,1 @@
+Letakkan icon-192.png dan icon-512.png di folder ini untuk memasang PWA.\n
