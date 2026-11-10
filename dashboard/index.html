@@ -1,1 +1,78 @@
 
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#171918">\n<link rel="manifest" href="/manifest.json">
+
+<title>Novia Home</title>
+
+<link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+<div class="container">
+
+<header class="header">
+ <div>
+  <div class="logo">NOVIA HOME</div>
+  <div class="subtitle">SMART HOME CONTROL</div>
+ </div>
+
+ <div class="status" id="status">
+  CONNECTING
+ </div>
+</header>
+
+<section class="overview">
+
+ <div class="section">SYSTEM OVERVIEW</div>
+
+ <div class="count" id="count">4 Devices</div>
+
+ <div class="network">
+  <span>WiFi Connection</span>
+  <span id="wifi">Checking...</span>
+ </div>
+
+ <div class="network">
+  <span>Blynk Cloud</span>
+  <span id="blynk">Checking...</span>
+ </div>
+
+ <div class="network">
+  <span>ESP32 IP</span>
+  <span id="ip">-</span>
+ </div>
+
+</section>
+
+<div class="section">DEVICE CONTROL</div>
+
+<div class="grid" id="devices"></div>
+
+<div class="actions">
+
+ <button class="btn btn-on"
+ onclick="master(true)">
+ ALL ON
+ </button>
+
+ <button class="btn btn-off"
+ onclick="master(false)">
+ ALL OFF
+ </button>
+
+</div>
+
+<div class="footer">
+ NOVIA HOME · ESP32 SMART SYSTEM
+</div>
+
+</div>
+
+<script src="/app.js" defer></script>
+</body>
+</html>
