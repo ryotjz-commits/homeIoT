@@ -1,13 +1,17 @@
+
 #pragma once
+
 #define BLYNK_TEMPLATE_ID "TMPL6Yk8Hycr-"
 #define BLYNK_TEMPLATE_NAME "Novia_Home"
 #define BLYNK_AUTH_TOKEN "uUhUdnlB22cqJfKinHQu8yGMXLRbgzf1"
+
 #define AP_PASSWORD_VALUE "Noke0710"
 #define WEB_PASSWORD_VALUE "Noke0710"
+
 #define CLOUD_API_BASE "https://flat-grass-2eb1.ryo-tjz.workers.dev"
 #define DEVICE_TOKEN "GKfhYgGea242cdshosvjshfswijgdsa"
-const char CLOUD_ROOT_CA[] =
-"-----BEGIN CERTIFICATE-----\n"
+const char CLOUD_ROOT_CA[] = R"ROOTCA(
+-----BEGIN CERTIFICATE-----
 MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
 TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
 cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
@@ -37,5 +41,5 @@ oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
 4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
 mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
 emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
-"-----END CERTIFICATE-----\n"
-  
+-----END CERTIFICATE-----
+)ROOTCA";
