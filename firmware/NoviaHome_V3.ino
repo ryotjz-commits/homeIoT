@@ -17,11 +17,6 @@
 */
 
 #include "config.h"
-
-#define BLYNK_TEMPLATE_ID BLYNK_TEMPLATE_ID_VALUE
-#define BLYNK_TEMPLATE_NAME BLYNK_TEMPLATE_NAME_VALUE
-#define BLYNK_AUTH_TOKEN BLYNK_AUTH_TOKEN_VALUE
-
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
