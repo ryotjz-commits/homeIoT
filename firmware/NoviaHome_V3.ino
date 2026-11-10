@@ -33,7 +33,7 @@
 // ==========================================
 
 const char* AP_NAME = "Novia-Home-Setup";
-const char* AP_PASSWORD = Noke0719;
+const char* AP_PASSWORD = Noke0710;
 
 const char* WEB_USER = "admin";
 const char* WEB_PASSWORD = Noke0710;
