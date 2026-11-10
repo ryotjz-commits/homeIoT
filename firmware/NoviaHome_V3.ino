@@ -1,7 +1,7 @@
 
 /*
   ==========================================
-       NOVIA HOME V2 - HYBRID SMART HOME
+       NOVIA HOME V3 - HYBRID SMART HOME
   ==========================================
 
   ESP32 + Blynk Cloud + WebServer
@@ -16,6 +16,8 @@
   Relay logic: ACTIVE LOW
 */
 
+#include "config.h"
+
 #define BLYNK_TEMPLATE_ID BLYNK_TEMPLATE_ID_VALUE
 #define BLYNK_TEMPLATE_NAME BLYNK_TEMPLATE_NAME_VALUE
 #define BLYNK_AUTH_TOKEN BLYNK_AUTH_TOKEN_VALUE
@@ -28,7 +30,8 @@
 #include <LittleFS.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
-#include "config.h"
+#include <ArduinoJson.h>
+#include <string.h>
 
 // ==========================================
 // CONFIGURATION
@@ -76,6 +79,14 @@ bool configMode = false;
 unsigned long lastBlynkAttempt = 0;
 
 const unsigned long reconnectInterval = 5000;
+
+// Cloud sync timers. Keep cloud traffic independent from Blynk/local control.
+unsigned long lastCloudPoll = 0;
+unsigned long lastCloudState = 0;
+const unsigned long cloudPollInterval = 1500;
+const unsigned long cloudStateInterval = 7000;
+const unsigned long cloudTimeoutMs = 1200;
+bool cloudAvailable = false;
 
 // ==========================================
 // HTML DASHBOARD
@@ -176,6 +187,90 @@ BLYNK_WRITE(V2) {
 
 BLYNK_WRITE(V3) {
   setRelay(3,param.asInt()==1,false);
+}
+
+// ==========================================
+// CLOUDFLARE HYBRID API
+// ==========================================
+
+String cloudUrl(const char* path) {
+  String base = String(CLOUD_API_BASE);
+  while (base.endsWith("/")) base.remove(base.length() - 1);
+  return base + path;
+}
+
+bool cloudRequest(const String& method, const char* path, const String& body, String* response = nullptr) {
+  if (!WiFi.isConnected() || String(CLOUD_API_BASE).length() < 10 || String(DEVICE_TOKEN).length() < 8) return false;
+
+  WiFiClientSecure client;
+  // Certificate validation is mandatory. Put the issuing root CA PEM in config.h.
+  client.setCACert(CLOUD_ROOT_CA);
+  HTTPClient http;
+  http.setTimeout(cloudTimeoutMs);
+  if (!http.begin(client, cloudUrl(path))) return false;
+  http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
+  if (method == "POST") http.addHeader("Content-Type", "application/json");
+
+  int code = (method == "POST") ? http.POST(body) : http.GET();
+  bool ok = code >= 200 && code < 300;
+  if (response && code > 0) *response = http.getString();
+  if (!ok) {
+    Serial.printf("Cloud API %s %s failed: %d\n", method.c_str(), path, code);
+  }
+  http.end();
+  return ok;
+}
+
+void publishCloudState() {
+  StaticJsonDocument<256> doc;
+  JsonArray relays = doc.createNestedArray("relays");
+  for (uint8_t i = 0; i < 4; i++) relays.add(relayState[i]);
+  doc["wifi"] = WiFi.isConnected();
+  doc["blynk"] = Blynk.connected();
+  doc["ip"] = WiFi.isConnected() ? WiFi.localIP().toString() : String("");
+  doc["device"] = "NoviaHome-ESP32";
+  doc["uptime"] = millis() / 1000;
+  String body;
+  serializeJson(doc, body);
+  cloudAvailable = cloudRequest("POST", "/api/device/state", body);
+}
+
+void pollCloudCommands() {
+  String response;
+  if (!cloudRequest("GET", "/api/device/poll", "", &response)) {
+    cloudAvailable = false;
+    return;
+  }
+  cloudAvailable = true;
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, response);
+  if (error || doc["command"].isNull()) return;
+
+  JsonObject command = doc["command"].as<JsonObject>();
+  const char* type = command["type"] | "";
+  if (strcmp(type, "relay") == 0) {
+    int ch = command["ch"] | -1;
+    int value = command["value"] | -1;
+    if (ch >= 0 && ch < 4 && (value == 0 || value == 1)) {
+      setRelay((uint8_t)ch, value == 1, true);
+    }
+  } else if (strcmp(type, "all") == 0) {
+    int value = command["value"] | -1;
+    if (value == 0 || value == 1) allRelays(value == 1);
+  }
+}
+
+void serviceCloud() {
+  if (configMode || !WiFi.isConnected()) return;
+  unsigned long now = millis();
+  if (now - lastCloudPoll >= cloudPollInterval) {
+    lastCloudPoll = now;
+    pollCloudCommands();
+  }
+  if (now - lastCloudState >= cloudStateInterval) {
+    lastCloudState = now;
+    publishCloudState();
+  }
 }
 
 // ==========================================
@@ -384,7 +479,9 @@ void setupRoutes() {
 
     json += ",\"ip\":\"";
     json += WiFi.localIP().toString();
-    json += "\"}";
+    json += "\",\"cloud\":";
+    json += cloudAvailable ? "true" : "false";
+    json += "}";
 
     server.sendHeader(
       "Cache-Control",
@@ -634,7 +731,7 @@ void setup() {
 
   Serial.println();
   Serial.println("======================");
-  Serial.println(" NOVIA HOME V2");
+  Serial.println(" NOVIA HOME V3 HYBRID");
   Serial.println("======================");
 
   // Initialize relay OFF
@@ -653,7 +750,7 @@ void setup() {
 
   }
 
-  if (!LittleFS.begin(true)) {
+  if (!LittleFS.begin(false)) {
     Serial.println("LittleFS mount failed");
   }
 
@@ -708,6 +805,8 @@ void loop() {
     }
 
   }
+
+  serviceCloud();
 
   timer.run();
 
