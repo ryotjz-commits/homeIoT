@@ -43,10 +43,29 @@ content="width=device-width,initial-scale=1">
  </div>
 
  <div class="network">
+  <span>Cloudflare API</span>
+  <span id="cloud">Not checked</span>
+ </div>
+
+ <div class="network">
   <span>ESP32 IP</span>
   <span id="ip">-</span>
  </div>
 
+</section>
+
+<section class="overview cloud-panel">
+ <div class="section">CLOUD CONNECTION</div>
+ <label for="cloudUrl">Worker URL</label>
+ <input id="cloudUrl" type="url" placeholder="https://novia-home-api.example.workers.dev" autocomplete="url">
+ <label for="cloudToken">Dashboard token</label>
+ <input id="cloudToken" type="password" placeholder="Masukkan DASHBOARD_TOKEN" autocomplete="off">
+ <div class="cloud-actions">
+  <button class="btn btn-on" onclick="connectCloud()">CONNECT CLOUD</button>
+  <button class="btn btn-off" onclick="useLocal()">LOCAL MODE</button>
+ </div>
+ <div class="network"><span>Connection mode</span><span id="mode">LOCAL</span></div>
+ <small class="hint">Token disimpan sementara di sesi browser, bukan di source code.</small>
 </section>
 
 <div class="section">DEVICE CONTROL</div>

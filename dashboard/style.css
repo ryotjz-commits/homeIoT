@@ -194,3 +194,8 @@ button:disabled {
  opacity:.5;
  cursor:wait;
 }
+
+.cloud-panel label { display:block; color:var(--muted); font-size:11px; margin:12px 0 6px; }
+.cloud-panel input { width:100%; padding:12px; border-radius:8px; border:1px solid #41463f; background:#171918; color:var(--text); outline:none; }
+.cloud-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:10px; }
+.hint { display:block; color:var(--muted); margin-top:10px; line-height:1.5; }
