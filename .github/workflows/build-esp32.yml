@@ -50,7 +50,7 @@ jobs:
         run: |
           arduino-cli compile --fqbn esp32:esp32:esp32 --warnings all --output-dir "$RUNNER_TEMP/firmware-output" "$RUNNER_TEMP/NoviaHome_V3"
           ls -lh "$RUNNER_TEMP/firmware-output/"
-      - name: Build LittleFS image dari dashboard
+            - name: Build LittleFS image dari dashboard
         run: |
           set -ex
           ls -lh dashboard/
@@ -58,13 +58,16 @@ jobs:
           test -f dashboard/portal.html
           test -f dashboard/app.js
           test -f dashboard/style.css
-          curl -L -o mklittlefs https://github.com/earlephilhower/mklittlefs/releases/download/4.6.0/mklittlefs-4.6.0-x86_64
-          ls -lh mklittlefs
-          cat mklittlefs
-          chmod +x mklittlefs
-          ./mklittlefs -c dashboard -b 4096 -p 256 -s 1507328 "$RUNNER_TEMP/firmware-output/littlefs.bin"
+          echo "=== Cari mklittlefs bawaan ESP32 core ==="
+          find $HOME/.arduino15 -name "mklittlefs*" -type f 2>/dev/null | head -n20
+          ls -lh $HOME/.arduino15/packages/esp32/tools/mklittlefs/ 2>/dev/null || true
+          MKLITTLEFS=$(find $HOME/.arduino15 -name "mklittlefs" -type f | head -n1)
+          echo "MKLITTLEFS=$MKLITTLEFS"
+          test -n "$MKLITTLEFS"
+          chmod +x "$MKLITTLEFS"
+          "$MKLITTLEFS" -c dashboard -b 4096 -p 256 -s 1507328 "$RUNNER_TEMP/firmware-output/littlefs.bin"
           ls -lh "$RUNNER_TEMP/firmware-output/littlefs.bin"
-          ./mklittlefs -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
+          "$MKLITTLEFS" -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
       - name: Merge firmware + LittleFS jadi FULL.bin
         run: |
           set -ex
