@@ -1,6 +1,4 @@
-
 name: Build Novia Home ESP32
-
 "on":
   workflow_dispatch:
   push:
@@ -8,280 +6,89 @@ name: Build Novia Home ESP32
       - 'firmware/**'
       - 'dashboard/**'
       - '.github/workflows/build-esp32.yml'
-
 permissions:
   contents: read
-
 jobs:
   build:
-    name: Build NOVIA HOME V3
+    name: Compile ESP32 Dev Module
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 20
     steps:
-
-      # =====================================
-      # 1. CHECKOUT REPOSITORY
-      # =====================================
-
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # =====================================
-      # 2. INSTALL ARDUINO CLI
-      # =====================================
-
       - name: Install Arduino CLI
         uses: arduino/setup-arduino-cli@v2
-
       - name: Configure Arduino CLI
         run: arduino-cli config init
-
-      # =====================================
-      # 3. INSTALL ESP32 CORE
-      # =====================================
-
-      - name: Install ESP32 Core
+      - name: Install ESP32 core
         run: |
-          set -euo pipefail
-
           arduino-cli core update-index
-
           arduino-cli core install esp32:esp32@2.0.17
-
-      # =====================================
-      # 4. INSTALL LIBRARIES
-      # =====================================
-
-      - name: Install Required Libraries
+      - name: Install required libraries
         run: |
-          set -euo pipefail
-
           arduino-cli lib update-index
-
-          arduino-cli lib install 'Blynk@1.3.2'
-
-          arduino-cli lib install 'ArduinoJson@6.21.5'
-
-      # =====================================
-      # 5. PREPARE FIRMWARE
-      # =====================================
-
-      - name: Prepare Firmware and Config
+          arduino-cli lib install 'Blynk'@1.3.2
+          arduino-cli lib install 'ArduinoJson'@6.21.5
+      - name: Prepare sketch and private config
         env:
           CONFIG_H: ${{ secrets.CONFIG_H }}
-
         run: |
           set -euo pipefail
-
           test -f firmware/NoviaHome_V3.ino
-
           if [ -z "${CONFIG_H:-}" ]; then
-            echo "ERROR: CONFIG_H secret belum dibuat."
+            echo 'CONFIG_H secret belum dibuat.'
             exit 1
           fi
-
           mkdir -p "$RUNNER_TEMP/NoviaHome_V3"
-
-          mkdir -p "$RUNNER_TEMP/firmware-output"
-
-          cp firmware/NoviaHome_V3.ino \
-            "$RUNNER_TEMP/NoviaHome_V3/NoviaHome_V3.ino"
-
-          printf '%s\n' "$CONFIG_H" \
-            > "$RUNNER_TEMP/NoviaHome_V3/config.h"
-
-          if grep -Eq \
-            'ISI_TEMPLATE_ID|ISI_TOKEN_BLYNK|GANTI_DENGAN|TEMPEL_ROOT_CA|GANTI-DENGAN' \
-            "$RUNNER_TEMP/NoviaHome_V3/config.h"; then
-
-            echo "ERROR: config.h masih mengandung placeholder."
+          cp firmware/NoviaHome_V3.ino "$RUNNER_TEMP/NoviaHome_V3/NoviaHome_V3.ino"
+          printf '%s\n' "$CONFIG_H" > "$RUNNER_TEMP/NoviaHome_V3/config.h"
+          if grep -Eq 'ISI_TEMPLATE_ID|ISI_TOKEN_BLYNK|GANTI_DENGAN|TEMPEL_ROOT_CA|GANTI-DENGAN' "$RUNNER_TEMP/NoviaHome_V3/config.h"; then
+            echo 'config.h masih mengandung placeholder.'
             exit 1
-
           fi
-
-      # =====================================
-      # 6. COMPILE ESP32
-      # =====================================
-
-      - name: Compile ESP32 Dev Module
+      - name: Compile for ESP32 Dev Module
         run: |
-          set -euo pipefail
-
-          arduino-cli compile \
-            --fqbn esp32:esp32:esp32:PartitionScheme=default,FlashSize=4M,FlashMode=dio,FlashFreq=40 \
-            --warnings all \
-            --output-dir "$RUNNER_TEMP/firmware-output" \
-            "$RUNNER_TEMP/NoviaHome_V3"
-
-          echo "FIRMWARE COMPILE SUCCESS"
-
+          arduino-cli compile --fqbn esp32:esp32:esp32 --warnings all --output-dir "$RUNNER_TEMP/firmware-output" "$RUNNER_TEMP/NoviaHome_V3"
           ls -lh "$RUNNER_TEMP/firmware-output/"
-
-      # =====================================
-      # 7. INSTALL MKLITTLEFS
-      # =====================================
-
-      - name: Install mklittlefs
+      - name: Build LittleFS image dari dashboard
         run: |
-          set -euo pipefail
-
-          sudo apt-get update
-
-          sudo apt-get install -y \
-            build-essential \
-            git
-
-          git clone \
-            --depth 1 \
-            --branch 2.5.1-2 \
-            --recurse-submodules \
-            https://github.com/earlephilhower/mklittlefs.git \
-            mklittlefs-source
-
-          # Compile executable saja.
-          # Jangan menggunakan target dist.
-          make -C mklittlefs-source
-
-          # Verifikasi executable.
-          MKLITTLEFS="$PWD/mklittlefs-source/mklittlefs"
-
-          test -x "$MKLITTLEFS"
-
-          echo "MKLITTLEFS=$MKLITTLEFS" \
-            >> "$GITHUB_ENV"
-
-          "$MKLITTLEFS" --help
-          
-      # =====================================
-      # 8. BUILD DASHBOARD LITTLEFS
-      # =====================================
-
-      - name: Build LittleFS Dashboard
-        run: |
-          set -euo pipefail
-
+          set -ex
+          ls -lh dashboard/
           test -f dashboard/index.html
           test -f dashboard/portal.html
-
-          echo "DASHBOARD FILES:"
-          find dashboard -type f -print
-
-          # Default ESP32 4MB:
-          # LittleFS offset = 0x290000
-          # LittleFS size   = 0x160000
-
-          FS_SIZE=1441792
-
-          "$MKLITTLEFS" \
-            -c dashboard \
-            -b 4096 \
-            -p 256 \
-            -s "$FS_SIZE" \
-            "$RUNNER_TEMP/firmware-output/littlefs.bin"
-
-          test -s "$RUNNER_TEMP/firmware-output/littlefs.bin"
-
-          echo "LITTLEFS IMAGE CREATED"
-
-          "$MKLITTLEFS" \
-            "$MKLITTLEFS" \
-  -b 4096 \
-  -p 256 \
-  -s 1441792 \
-  -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
-
+          test -f dashboard/app.js
+          test -f dashboard/style.css
+          curl -L -o mklittlefs.tar.gz https://github.com/earlephilhower/mklittlefs/releases/download/4.6.0/mklittlefs-4.6.0-x86_64.tar.gz
+          ls -lh mklittlefs.tar.gz
+          tar -xzf mklittlefs.tar.gz
+          ls -lh
+          MKLITTLEFS=$(find . -maxdepth 3 -name "mklittlefs" -type f | head -n1)
+          echo "MKLITTLEFS=$MKLITTLEFS"
+          test -n "$MKLITTLEFS"
+          chmod +x "$MKLITTLEFS"
+          "$MKLITTLEFS" -c dashboard -b 4096 -p 256 -s 1507328 "$RUNNER_TEMP/firmware-output/littlefs.bin"
           ls -lh "$RUNNER_TEMP/firmware-output/littlefs.bin"
-
-      # =====================================
-      # 9. MERGE FULL FIRMWARE
-      # =====================================
-
-      - name: Merge Firmware and LittleFS
+          "$MKLITTLEFS" -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
+      - name: Merge firmware + LittleFS jadi FULL.bin
         run: |
-          set -euo pipefail
-
-          pip install esptool==4.8.1
-
-          OUT="$RUNNER_TEMP/firmware-output"
-
-          CORE="$HOME/.arduino15/packages/esp32/hardware/esp32/2.0.17"
-
-          FW=$(find "$OUT" -maxdepth 1 \
-            -name '*.ino.bin' | head -n 1)
-
-          BOOT=$(find "$OUT" -maxdepth 1 \
-            -name '*.bootloader.bin' | head -n 1)
-
-          PART=$(find "$OUT" -maxdepth 1 \
-            -name '*.partitions.bin' | head -n 1)
-
-          BOOT_APP0="$CORE/tools/partitions/boot_app0.bin"
-
-          FS="$OUT/littlefs.bin"
-
-          test -s "$FW"
-          test -s "$BOOT"
-          test -s "$PART"
-          test -s "$BOOT_APP0"
-          test -s "$FS"
-
-          echo "FIRMWARE: $FW"
-          echo "BOOTLOADER: $BOOT"
-          echo "PARTITIONS: $PART"
-          echo "BOOT APP0: $BOOT_APP0"
-          echo "LITTLEFS: $FS"
-
-          python -m esptool \
-            --chip esp32 \
-            merge_bin \
-            -o "$OUT/NoviaHome_V3-FULL.bin" \
-            --flash_mode dio \
-            --flash_freq 40m \
-            --flash_size 4MB \
-            0x1000 "$BOOT" \
-            0x8000 "$PART" \
-            0xE000 "$BOOT_APP0" \
-            0x10000 "$FW" \
-            0x290000 "$FS"
-
-          echo "FULL FIRMWARE CREATED"
-
-          ls -lh "$OUT/NoviaHome_V3-FULL.bin"
-
-      # =====================================
-      # 10. VERIFY OUTPUT
-      # =====================================
-
-      - name: Verify Firmware Output
-        run: |
-          set -euo pipefail
-
-          OUT="$RUNNER_TEMP/firmware-output"
-
-          test -s "$OUT/NoviaHome_V3-FULL.bin"
-          test -s "$OUT/littlefs.bin"
-
-          echo "================================"
-          echo "NOVIA HOME V3 BUILD SUCCESS"
-          echo "================================"
-
-          ls -lh "$OUT/"
-
-      # =====================================
-      # 11. UPLOAD ARTIFACTS
-      # =====================================
-
-      - name: Upload Firmware Binaries
+          set -ex
+          pip install -q esptool
+          ls -lh "$RUNNER_TEMP/firmware-output/"
+          cd "$RUNNER_TEMP/firmware-output"
+          FW=$(ls NoviaHome_V3.ino.bin 2>/dev/null || ls *.ino.bin | head -n1)
+          BOOT=$(ls NoviaHome_V3.ino.bootloader.bin 2>/dev/null || ls *.bootloader.bin | head -n1)
+          PART=$(ls NoviaHome_V3.ino.partitions.bin 2>/dev/null || ls *.partitions.bin | head -n1)
+          echo "FW=$FW BOOT=$BOOT PART=$PART"
+          test -f "$FW"
+          test -f "$BOOT"
+          test -f "$PART"
+          test -f littlefs.bin
+          esptool.py --chip esp32 merge_bin -o NoviaHome_V3-FULL.bin --flash_mode dio --flash_freq 40m --flash_size 4MB 0x1000 "$BOOT" 0x8000 "$PART" 0x10000 "$FW" 0x290000 littlefs.bin
+          ls -lh NoviaHome_V3-FULL.bin
+      - name: Upload firmware binaries
         uses: actions/upload-artifact@v4
-
         with:
-          name: NoviaHome-ESP32-FULL-FIRMWARE
-
-          path: |
-            ${{ runner.temp }}/firmware-output/*.bin
-
+          name: NoviaHome-ESP32-firmware
+          path: ${{ runner.temp }}/firmware-output/*.bin
           if-no-files-found: error
-
           retention-days: 30
-          
