@@ -1,8 +1,8 @@
-
 /*
-  ==========================================
+
        NOVIA HOME V3 - HYBRID SMART HOME
-  ==========================================
+       FIXED - Captive Portal + Auth Fix
+
 
   ESP32 + Blynk Cloud + WebServer
   WiFi Manager + Preferences + Authentication
@@ -33,10 +33,12 @@
 // ==========================================
 
 const char* AP_NAME = "Novia-Home-Setup";
-const char* AP_PASSWORD = "Noke0710";
+// ISI PASSWORD BARU DI SINI, JANGAN PAKE YANG LAMA
+const char* AP_PASSWORD = "ISI_PASSWORD_AP_BARU";
 
 const char* WEB_USER = "admin";
-const char* WEB_PASSWORD = "Noke0710";
+// ISI PASSWORD BARU DI SINI, JANGAN PAKE YANG LAMA
+const char* WEB_PASSWORD = "ISI_PASSWORD_WEB_BARU";
 
 const uint8_t relayPins[4] = {
   26, 27, 14, 13
@@ -84,74 +86,41 @@ const unsigned long cloudTimeoutMs = 1200;
 bool cloudAvailable = false;
 
 // ==========================================
-// HTML DASHBOARD
-// ==========================================
-
-
-
-// ==========================================
-// WIFI CONFIGURATION PORTAL
-// ==========================================
-
-
-
-// ==========================================
 // AUTHENTICATION
 // ==========================================
 
 bool authenticate() {
-
-  if (!server.authenticate(
-    WEB_USER,
-    WEB_PASSWORD
-  )) {
-
+  if (!server.authenticate(WEB_USER, WEB_PASSWORD)) {
     server.requestAuthentication();
-
     return false;
   }
-
   return true;
+}
+
+// Auth hanya kalau BUKAN configMode
+// Kalau configMode, portal WiFi harus bebas dibuka
+bool needAuth() {
+  if (configMode) return false;
+  return !authenticate();
 }
 
 // ==========================================
 // RELAY CONTROL
 // ==========================================
 
-void setRelay(
-  uint8_t ch,
-  bool state,
-  bool sync = true
-) {
-
+void setRelay(uint8_t ch, bool state, bool sync = true) {
   if(ch >= 4) return;
-
   relayState[ch] = state;
-
-  digitalWrite(
-    relayPins[ch],
-    state ? LOW : HIGH
-  );
-
+  digitalWrite(relayPins[ch], state ? LOW : HIGH);
   if(sync && Blynk.connected()) {
-
-    Blynk.virtualWrite(
-      ch,
-      state ? 1 : 0
-    );
-
+    Blynk.virtualWrite(ch, state ? 1 : 0);
   }
-
 }
 
 void allRelays(bool state) {
-
   for(uint8_t i=0;i<4;i++) {
-
     setRelay(i,state);
-
   }
-
 }
 
 // ==========================================
@@ -159,30 +128,14 @@ void allRelays(bool state) {
 // ==========================================
 
 BLYNK_CONNECTED() {
-
   Serial.println("Blynk Connected");
-
-  Blynk.syncVirtual(
-    V0,V1,V2,V3
-  );
-
+  Blynk.syncVirtual(V0,V1,V2,V3);
 }
 
-BLYNK_WRITE(V0) {
-  setRelay(0,param.asInt()==1,false);
-}
-
-BLYNK_WRITE(V1) {
-  setRelay(1,param.asInt()==1,false);
-}
-
-BLYNK_WRITE(V2) {
-  setRelay(2,param.asInt()==1,false);
-}
-
-BLYNK_WRITE(V3) {
-  setRelay(3,param.asInt()==1,false);
-}
+BLYNK_WRITE(V0) { setRelay(0,param.asInt()==1,false); }
+BLYNK_WRITE(V1) { setRelay(1,param.asInt()==1,false); }
+BLYNK_WRITE(V2) { setRelay(2,param.asInt()==1,false); }
+BLYNK_WRITE(V3) { setRelay(3,param.asInt()==1,false); }
 
 // ==========================================
 // CLOUDFLARE HYBRID API
@@ -196,16 +149,13 @@ String cloudUrl(const char* path) {
 
 bool cloudRequest(const String& method, const char* path, const String& body, String* response = nullptr) {
   if (!WiFi.isConnected() || String(CLOUD_API_BASE).length() < 10 || String(DEVICE_TOKEN).length() < 8) return false;
-
   WiFiClientSecure client;
-  // Certificate validation is mandatory. Put the issuing root CA PEM in config.h.
   client.setCACert(CLOUD_ROOT_CA);
   HTTPClient http;
   http.setTimeout(cloudTimeoutMs);
   if (!http.begin(client, cloudUrl(path))) return false;
   http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
   if (method == "POST") http.addHeader("Content-Type", "application/json");
-
   int code = (method == "POST") ? http.POST(body) : http.GET();
   bool ok = code >= 200 && code < 300;
   if (response && code > 0) *response = http.getString();
@@ -240,7 +190,6 @@ void pollCloudCommands() {
   StaticJsonDocument<256> doc;
   DeserializationError error = deserializeJson(doc, response);
   if (error || doc["command"].isNull()) return;
-
   JsonObject command = doc["command"].as<JsonObject>();
   const char* type = command["type"] | "";
   if (strcmp(type, "relay") == 0) {
@@ -273,15 +222,12 @@ void serviceCloud() {
 // ==========================================
 
 String jsonEscape(String value) {
-
   value.replace("\\","\\\\");
   value.replace("\"","\\\"");
   value.replace("\n","\\n");
   value.replace("\r","\\r");
   value.replace("\t","\\t");
-
   return value;
-
 }
 
 // ==========================================
@@ -289,54 +235,27 @@ String jsonEscape(String value) {
 // ==========================================
 
 void handleScan() {
-
-  if(!authenticate()) return;
-
+  if(needAuth()) return;
   int n = WiFi.scanNetworks();
-
   String json = "[";
-
   bool first = true;
-
   for(int i=0;i<n;i++) {
-
     String name = WiFi.SSID(i);
-
     if(name.length()==0) continue;
-
     if(!first) json += ",";
-
     first = false;
-
     json += "{\"ssid\":\"";
     json += jsonEscape(name);
-
     json += "\",\"rssi\":";
     json += String(WiFi.RSSI(i));
-
     json += "}";
-
   }
-
   json += "]";
-
   WiFi.scanDelete();
-
-  server.sendHeader(
-    "Cache-Control",
-    "no-store"
-  );
-
-  server.send(
-    200,
-    "application/json",
-    json
-  );
-
+  server.sendHeader("Cache-Control","no-store");
+  server.send(200,"application/json",json);
 }
 
-
-// Serve dashboard assets from LittleFS. Files are stored in /dashboard.
 String contentType(const String& path) {
   if (path.endsWith(".html")) return "text/html";
   if (path.endsWith(".css")) return "text/css";
@@ -359,14 +278,14 @@ void serveDashboard() {
 }
 
 void handleStaticFile() {
-  if (!authenticate()) return;
+  if(needAuth()) return;
   String path = server.uri();
-  if (path == "/") path = "/index.html";
+  if (path == "/") path = configMode ? "/portal.html" : "/index.html";
   if (path.indexOf("..") >= 0) {
     server.send(400, "text/plain", "Bad path");
     return;
   }
-  if (configMode) path = "/portal.html";
+  // FIX: jangan dipaksa ke portal.html, biar CSS/JS ke-load bener
   if (!LittleFS.exists(path)) {
     server.send(404, "text/plain", "File not found");
     return;
@@ -377,20 +296,40 @@ void handleStaticFile() {
 }
 
 // ==========================================
-// WEB SERVER ROUTES
+// WEB SERVER ROUTES - FIXED
 // ==========================================
 
 void setupRoutes() {
 
-  server.on("/",HTTP_GET,[]() {
-
-    if(!authenticate()) return;
-
+  // FIX 1: Root bebas kalau configMode, nggak minta login
+  server.on("/", HTTP_GET, []() {
+    if(needAuth()) return;
     serveDashboard();
-
   });
 
-  server.on("/scan",HTTP_GET,handleScan);
+  // FIX 2: Portal eksplisit
+  server.on("/portal.html", HTTP_GET, []() {
+    if(needAuth()) return;
+    serveDashboard();
+  });
+  server.on("/index.html", HTTP_GET, []() {
+    if(needAuth()) return;
+    serveDashboard();
+  });
+
+  // FIX 3: Captive portal Android / iOS - WAJIB tanpa Auth
+  auto captive = []() {
+    server.sendHeader("Location", "http://192.168.4.1/", true);
+    server.send(302, "text/plain", "");
+  };
+  server.on("/generate_204", HTTP_GET, captive);
+  server.on("/hotspot-detect.html", HTTP_GET, captive);
+  server.on("/connecttest.txt", HTTP_GET, captive);
+  server.on("/ncsi.txt", HTTP_GET, captive);
+  server.on("/fwlink", HTTP_GET, captive);
+  server.on("/redirect", HTTP_GET, captive);
+
+  server.on("/scan", HTTP_GET, handleScan);
   server.on("/style.css", HTTP_GET, handleStaticFile);
   server.on("/app.js", HTTP_GET, handleStaticFile);
   server.on("/manifest.json", HTTP_GET, handleStaticFile);
@@ -398,194 +337,89 @@ void setupRoutes() {
   server.on("/icons/icon-192.png", HTTP_GET, handleStaticFile);
   server.on("/icons/icon-512.png", HTTP_GET, handleStaticFile);
 
-  server.on("/save",HTTP_POST,[]() {
-
-    if(!authenticate()) return;
-
+  server.on("/save", HTTP_POST, []() {
+    if(needAuth()) return;
     String newSSID = server.arg("ssid");
     String newPass = server.arg("password");
-
-    if(
-      newSSID.length()==0 ||
-      newSSID.length()>32 ||
-      newPass.length()>63
-    ) {
-
-      server.send(
-        400,
-        "text/plain",
-        "Invalid WiFi Settings"
-      );
-
+    if(newSSID.length()==0 || newSSID.length()>32 || newPass.length()>63) {
+      server.send(400, "text/plain", "Invalid WiFi Settings");
       return;
-
     }
-
     preferences.begin("novia",false);
-
-    preferences.putString(
-      "ssid",
-      newSSID
-    );
-
-    preferences.putString(
-      "pass",
-      newPass
-    );
-
+    preferences.putString("ssid", newSSID);
+    preferences.putString("pass", newPass);
     preferences.end();
-
-    server.send(
-      200,
-      "text/html",
-      "<h2>Konfigurasi tersimpan. ESP32 restart...</h2>"
-    );
-
+    server.send(200, "text/html", "<h2>Konfigurasi tersimpan. ESP32 restart...</h2>");
     delay(1200);
-
     ESP.restart();
-
   });
 
-  server.on("/api/state",HTTP_GET,[]() {
-
+  server.on("/api/state", HTTP_GET, []() {
     if(configMode) {
       server.send(503,"text/plain","Setup Mode");
       return;
     }
-
-    if(!authenticate()) return;
-
+    if(needAuth()) return;
     String json = "{\"relays\":[";
-
     for(int i=0;i<4;i++) {
-
       json += relayState[i] ? "true" : "false";
-
       if(i<3) json += ",";
-
     }
-
     json += "],\"wifi\":";
     json += WiFi.isConnected() ? "true" : "false";
-
     json += ",\"blynk\":";
     json += Blynk.connected() ? "true" : "false";
-
     json += ",\"ip\":\"";
     json += WiFi.localIP().toString();
     json += "\",\"cloud\":";
     json += cloudAvailable ? "true" : "false";
     json += "}";
-
-    server.sendHeader(
-      "Cache-Control",
-      "no-store"
-    );
-
-    server.send(
-      200,
-      "application/json",
-      json
-    );
-
+    server.sendHeader("Cache-Control","no-store");
+    server.send(200,"application/json",json);
   });
 
-  server.on("/api/relay",HTTP_GET,[]() {
-
-    if(!authenticate()) return;
-
-    if(
-      !server.hasArg("ch") ||
-      !server.hasArg("value")
-    ) {
-
+  server.on("/api/relay", HTTP_GET, []() {
+    if(needAuth()) return;
+    if(!server.hasArg("ch") || !server.hasArg("value")) {
       server.send(400,"text/plain","Missing Parameters");
       return;
-
     }
-
     int ch = server.arg("ch").toInt();
     int value = server.arg("value").toInt();
-
-    if(
-      ch<0 || ch>3 ||
-      (value!=0 && value!=1)
-    ) {
-
+    if(ch<0 || ch>3 || (value!=0 && value!=1)) {
       server.send(400,"text/plain","Invalid Parameters");
       return;
-
     }
-
     setRelay(ch,value==1);
-
-    server.send(
-      200,
-      "text/plain",
-      "OK"
-    );
-
+    server.send(200,"text/plain","OK");
   });
 
-  server.on("/api/all",HTTP_GET,[]() {
-
-    if(!authenticate()) return;
-
+  server.on("/api/all", HTTP_GET, []() {
+    if(needAuth()) return;
     if(!server.hasArg("value")) {
-
       server.send(400,"text/plain","Missing Value");
       return;
-
     }
-
     int value = server.arg("value").toInt();
-
     if(value!=0 && value!=1) {
-
       server.send(400,"text/plain","Invalid Value");
       return;
-
     }
-
     allRelays(value==1);
-
-    server.send(
-      200,
-      "text/plain",
-      "OK"
-    );
-
+    server.send(200,"text/plain","OK");
   });
 
   server.onNotFound([]() {
-
     if(configMode) {
-
-      server.sendHeader(
-        "Location",
-        "http://192.168.4.1/",
-        true
-      );
-
+      server.sendHeader("Location","http://192.168.4.1/",true);
       server.send(302,"text/plain","");
-
     } else {
-
-      server.send(
-        404,
-        "text/plain",
-        "Not Found"
-      );
-
+      server.send(404,"text/plain","Not Found");
     }
-
   });
 
   server.begin();
-
   Serial.println("WebServer Started");
-
 }
 
 // ==========================================
@@ -593,30 +427,13 @@ void setupRoutes() {
 // ==========================================
 
 void startConfigPortal() {
-
   configMode = true;
-
   WiFi.mode(WIFI_AP_STA);
-
-  WiFi.softAP(
-    AP_NAME,
-    AP_PASSWORD
-  );
-
-  dnsServer.start(
-    53,
-    "*",
-    WiFi.softAPIP()
-  );
-
+  WiFi.softAP(AP_NAME, AP_PASSWORD);
+  dnsServer.start(53, "*", WiFi.softAPIP());
   Serial.println("CONFIGURATION MODE");
-
   Serial.print("AP IP: ");
-
-  Serial.println(
-    WiFi.softAPIP()
-  );
-
+  Serial.println(WiFi.softAPIP());
 }
 
 // ==========================================
@@ -624,69 +441,30 @@ void startConfigPortal() {
 // ==========================================
 
 void connectWiFi() {
-
   preferences.begin("novia",true);
-
-  wifiSSID = preferences.getString(
-    "ssid",
-    ""
-  );
-
-  wifiPassword = preferences.getString(
-    "pass",
-    ""
-  );
-
+  wifiSSID = preferences.getString("ssid","");
+  wifiPassword = preferences.getString("pass","");
   preferences.end();
-
   if(wifiSSID.length()==0) {
-
     startConfigPortal();
-
     return;
-
   }
-
   WiFi.mode(WIFI_STA);
-
-  WiFi.begin(
-    wifiSSID.c_str(),
-    wifiPassword.c_str()
-  );
-
+  WiFi.begin(wifiSSID.c_str(), wifiPassword.c_str());
   Serial.print("Connecting WiFi");
-
   unsigned long start = millis();
-
-  while(
-    WiFi.status()!=WL_CONNECTED &&
-    millis()-start<15000
-  ) {
-
+  while(WiFi.status()!=WL_CONNECTED && millis()-start<15000) {
     delay(300);
-
     Serial.print(".");
-
   }
-
   if(WiFi.status()==WL_CONNECTED) {
-
     Serial.println("\nWiFi Connected");
-
     Serial.print("IP: ");
-
-    Serial.println(
-      WiFi.localIP()
-    );
-
+    Serial.println(WiFi.localIP());
   } else {
-
     Serial.println("\nWiFi Failed");
-
     startConfigPortal();
-
   }
-
 }
 
 // ==========================================
@@ -694,26 +472,12 @@ void connectWiFi() {
 // ==========================================
 
 void reconnectBlynk() {
-
-  if(
-    configMode ||
-    !WiFi.isConnected() ||
-    Blynk.connected()
-  ) return;
-
-  if(
-    millis()-lastBlynkAttempt >=
-    reconnectInterval
-  ) {
-
+  if(configMode || !WiFi.isConnected() || Blynk.connected()) return;
+  if(millis()-lastBlynkAttempt >= reconnectInterval) {
     lastBlynkAttempt = millis();
-
     Serial.println("Reconnecting Blynk...");
-
     Blynk.connect(1000);
-
   }
-
 }
 
 // ==========================================
@@ -721,52 +485,25 @@ void reconnectBlynk() {
 // ==========================================
 
 void setup() {
-
   Serial.begin(115200);
-
   Serial.println();
   Serial.println("======================");
-  Serial.println(" NOVIA HOME V3 HYBRID");
+  Serial.println(" NOVIA HOME V3 HYBRID - FIXED");
   Serial.println("======================");
-
-  // Initialize relay OFF
-
   for(int i=0;i<4;i++) {
-
-    digitalWrite(
-      relayPins[i],
-      HIGH
-    );
-
-    pinMode(
-      relayPins[i],
-      OUTPUT
-    );
-
+    pinMode(relayPins[i], OUTPUT);
+    digitalWrite(relayPins[i], HIGH);
   }
-
   if (!LittleFS.begin(false)) {
     Serial.println("LittleFS mount failed");
   }
-
   connectWiFi();
-
-  // Blynk initialization
-
-  Blynk.config(
-    BLYNK_AUTH_TOKEN
-  );
-
+  Blynk.config(BLYNK_AUTH_TOKEN);
   if(WiFi.isConnected()) {
-
     Blynk.connect(1000);
-
   }
-
   setupRoutes();
-
   Serial.println("SYSTEM READY");
-
 }
 
 // ==========================================
@@ -774,35 +511,19 @@ void setup() {
 // ==========================================
 
 void loop() {
-
   if(configMode) {
-
     dnsServer.processNextRequest();
-
   }
-
   server.handleClient();
-
   if(!configMode) {
-
     if(WiFi.isConnected()) {
-
       if(Blynk.connected()) {
-
         Blynk.run();
-
       } else {
-
         reconnectBlynk();
-
       }
-
     }
-
   }
-
   serviceCloud();
-
   timer.run();
-
 }
