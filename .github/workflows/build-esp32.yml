@@ -139,19 +139,20 @@ jobs:
             https://github.com/earlephilhower/mklittlefs.git \
             mklittlefs-source
 
-          make -C mklittlefs-source dist
+          # Compile executable saja.
+          # Jangan menggunakan target dist.
+          make -C mklittlefs-source
 
-          MKLITTLEFS=$(find mklittlefs-source \
-            -type f \
-            -name mklittlefs \
-            -perm -111 | head -n 1)
+          # Verifikasi executable.
+          MKLITTLEFS="$PWD/mklittlefs-source/mklittlefs"
 
-          test -n "$MKLITTLEFS"
           test -x "$MKLITTLEFS"
 
-          echo "MKLITTLEFS=$PWD/$MKLITTLEFS" \
+          echo "MKLITTLEFS=$MKLITTLEFS" \
             >> "$GITHUB_ENV"
 
+          "$MKLITTLEFS" --help
+          
       # =====================================
       # 8. BUILD DASHBOARD LITTLEFS
       # =====================================
