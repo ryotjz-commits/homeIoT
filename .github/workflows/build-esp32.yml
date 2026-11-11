@@ -185,7 +185,11 @@ jobs:
           echo "LITTLEFS IMAGE CREATED"
 
           "$MKLITTLEFS" \
-            -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
+            "$MKLITTLEFS" \
+  -b 4096 \
+  -p 256 \
+  -s 1441792 \
+  -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
 
           ls -lh "$RUNNER_TEMP/firmware-output/littlefs.bin"
 
