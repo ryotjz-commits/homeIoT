@@ -90,4 +90,4 @@ jobs:
           name: NoviaHome-ESP32-firmware
           path: ${{ runner.temp }}/firmware-output/*.bin
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 31
