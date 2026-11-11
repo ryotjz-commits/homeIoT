@@ -1,6 +1,6 @@
 name: Build Novia Home ESP32
 
-on:
+"on":
   workflow_dispatch:
   push:
     paths:
