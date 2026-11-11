@@ -64,7 +64,7 @@ jobs:
           chmod +x "$MKLITTLEFS"
           "$MKLITTLEFS" -c dashboard -b 4096 -p 256 -s 1507328 "$RUNNER_TEMP/firmware-output/littlefs.bin"
           ls -lh "$RUNNER_TEMP/firmware-output/littlefs.bin"
-          "$MKLITTLEFS" -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
+          
       - name: Upload firmware binaries
         uses: actions/upload-artifact@v4
         with:
