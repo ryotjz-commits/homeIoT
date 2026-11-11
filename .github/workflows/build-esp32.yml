@@ -1,15 +1,13 @@
 name: Build Novia Home ESP32
-
-on:
+"on":
   workflow_dispatch:
   push:
     paths:
       - 'firmware/**'
+      - 'dashboard/**'
       - '.github/workflows/build-esp32.yml'
-
 permissions:
   contents: read
-
 jobs:
   build:
     name: Compile ESP32 Dev Module
@@ -18,24 +16,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Install Arduino CLI
         uses: arduino/setup-arduino-cli@v2
-
       - name: Configure Arduino CLI
         run: arduino-cli config init
-
       - name: Install ESP32 core
         run: |
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@2.0.17
-
       - name: Install required libraries
         run: |
           arduino-cli lib update-index
           arduino-cli lib install 'Blynk'@1.3.2
           arduino-cli lib install 'ArduinoJson'@6.21.5
-
       - name: Prepare sketch and private config
         env:
           CONFIG_H: ${{ secrets.CONFIG_H }}
@@ -44,25 +37,34 @@ jobs:
           test -f firmware/NoviaHome_V3.ino
           if [ -z "${CONFIG_H:-}" ]; then
             echo 'CONFIG_H secret belum dibuat.'
-            echo 'Isi secret dengan seluruh konten firmware/config.h yang sudah valid.'
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/NoviaHome_V3"
           cp firmware/NoviaHome_V3.ino "$RUNNER_TEMP/NoviaHome_V3/NoviaHome_V3.ino"
           printf '%s\n' "$CONFIG_H" > "$RUNNER_TEMP/NoviaHome_V3/config.h"
           if grep -Eq 'ISI_TEMPLATE_ID|ISI_TOKEN_BLYNK|GANTI_DENGAN|TEMPEL_ROOT_CA|GANTI-DENGAN' "$RUNNER_TEMP/NoviaHome_V3/config.h"; then
-            echo 'config.h masih mengandung placeholder. Periksa secret CONFIG_H.'
+            echo 'config.h masih mengandung placeholder.'
             exit 1
           fi
-
       - name: Compile for ESP32 Dev Module
         run: |
-          arduino-cli compile \
-            --fqbn esp32:esp32:esp32 \
-            --warnings all \
-            --output-dir "$RUNNER_TEMP/firmware-output" \
-            "$RUNNER_TEMP/NoviaHome_V3"
-
+          arduino-cli compile --fqbn esp32:esp32:esp32 --warnings all --output-dir "$RUNNER_TEMP/firmware-output" "$RUNNER_TEMP/NoviaHome_V3"
+          ls -lh "$RUNNER_TEMP/firmware-output/"
+      - name: Build LittleFS image dari dashboard
+        run: |
+          set -ex
+          ls -lh dashboard/
+          test -f dashboard/index.html
+          test -f dashboard/portal.html
+          test -f dashboard/app.js
+          test -f dashboard/style.css
+          MKLITTLEFS=$(find $HOME/.arduino15 -name "mklittlefs" -type f | head -n1)
+          echo "MKLITTLEFS=$MKLITTLEFS"
+          test -n "$MKLITTLEFS"
+          chmod +x "$MKLITTLEFS"
+          "$MKLITTLEFS" -c dashboard -b 4096 -p 256 -s 1507328 "$RUNNER_TEMP/firmware-output/littlefs.bin"
+          ls -lh "$RUNNER_TEMP/firmware-output/littlefs.bin"
+          "$MKLITTLEFS" -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
       - name: Upload firmware binaries
         uses: actions/upload-artifact@v4
         with:
@@ -70,4 +72,3 @@ jobs:
           path: ${{ runner.temp }}/firmware-output/*.bin
           if-no-files-found: error
           retention-days: 30
-          
