@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'firmware/**'
-      - '.github/workflows/build-esp32.yml'
+            - 'firmware/**'
+            - 'dashboard/**'
+            - '.github/workflows/build-esp32.yml'
 
 permissions:
   contents: read
@@ -16,27 +17,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout repository
+            - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Arduino CLI
+            - name: Install Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
-      - name: Configure Arduino CLI
+            - name: Configure Arduino CLI
         run: arduino-cli config init
 
-      - name: Install ESP32 core
+            - name: Install ESP32 core
         run: |
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@2.0.17
 
-      - name: Install required libraries
+            - name: Install required libraries
         run: |
           arduino-cli lib update-index
           arduino-cli lib install 'Blynk'@1.3.2
           arduino-cli lib install 'ArduinoJson'@6.21.5
 
-      - name: Prepare sketch and private config
+            - name: Prepare sketch and private config
         env:
           CONFIG_H: ${{ secrets.CONFIG_H }}
         run: |
@@ -55,15 +56,59 @@ jobs:
             exit 1
           fi
 
-      - name: Compile for ESP32 Dev Module
+            - name: Compile for ESP32 Dev Module
         run: |
           arduino-cli compile \
             --fqbn esp32:esp32:esp32 \
             --warnings all \
             --output-dir "$RUNNER_TEMP/firmware-output" \
             "$RUNNER_TEMP/NoviaHome_V3"
+          ls -lh "$RUNNER_TEMP/firmware-output/"
 
-      - name: Upload firmware binaries
+      # ===== BARU: BIKIN LITTLEFS DARI dashboard/ =====
+            - name: Build LittleFS image dari dashboard
+        run: |
+          set -euo pipefail
+          echo "=== Isi dashboard/ ==="
+          ls -lh dashboard/
+          test -f dashboard/index.html
+          test -f dashboard/portal.html
+          test -f dashboard/app.js
+          test -f dashboard/style.css
+
+          # Download mklittlefs
+          wget -q https://github.com/earlephilhower/mklittlefs/releases/download/4.6.0/mklittlefs-4.6.0-x86_64.tar.gz
+          tar -xzf mklittlefs-4.6.0-x86_64.tar.gz
+          chmod +x mklittlefs
+
+          # Build image 0x170000 = 1507328 byte, sesuai partisi LittleFS default ESP32 4MB
+          ./mklittlefs -c dashboard -b 4096 -p 256 -s 1507328 "$RUNNER_TEMP/firmware-output/littlefs.bin"
+          ls -lh "$RUNNER_TEMP/firmware-output/littlefs.bin"
+          echo "=== Isi LittleFS ==="
+          ./mklittlefs -l "$RUNNER_TEMP/firmware-output/littlefs.bin"
+
+      # ===== BARU: GABUNG JADI 1 FILE FULL.bin =====
+            - name: Merge firmware + LittleFS jadi FULL.bin
+        run: |
+          set -euo pipefail
+          pip install -q esptool
+          ls -lh "$RUNNER_TEMP/firmware-output/"
+          cd "$RUNNER_TEMP/firmware-output"
+          # Cari nama file hasil compile (arduino-cli kadang nambah .ino.)
+          FW=$(ls NoviaHome_V3.ino.bin 2>/dev/null || ls *.ino.bin | head -n1)
+          BOOT=$(ls NoviaHome_V3.ino.bootloader.bin 2>/dev/null || ls *.bootloader.bin | head -n1)
+          PART=$(ls NoviaHome_V3.ino.partitions.bin 2>/dev/null || ls *.partitions.bin | head -n1)
+          echo "FW=$FW BOOT=$BOOT PART=$PART"
+          esptool.py --chip esp32 merge_bin \
+            -o NoviaHome_V3-FULL.bin \
+            --flash_mode dio --flash_freq 40m --flash_size 4MB \
+            0x1000 "$BOOT" \
+            0x8000 "$PART" \
+            0x10000 "$FW" \
+            0x290000 littlefs.bin
+          ls -lh NoviaHome_V3-FULL.bin
+
+            - name: Upload firmware binaries
         uses: actions/upload-artifact@v4
         with:
           name: NoviaHome-ESP32-firmware
