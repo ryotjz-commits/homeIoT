@@ -1,97 +1,60 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport"
-content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#171918">\n<link rel="manifest" href="/manifest.json">
-
-<title>Novia Home</title>
-
-<link rel="stylesheet" href="/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novia Home V2 - 4 Channel</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-<div class="container">
+  <div class="container">
+    <!-- HEADER -->
+    <header class="header">
+      <div class="logo">🏠</div>
+      <div>
+        <h1>Novia Home</h1>
+        <p>Control Lampu + Kipas • 4 Channel</p>
+      </div>
+      <div class="status-dot" id="connStatus" title="Status Koneksi">●</div>
+    </header>
 
-<header class="header">
- <div>
-  <div class="logo">NOVIA HOME</div>
-  <div class="subtitle">SMART HOME CONTROL</div>
- </div>
+    <!-- SETTING IP ESP32 -->
+    <section class="card ip-card">
+      <div class="ip-row">
+        <div>
+          <label>IP ESP32</label>
+          <p class="hint" id="ipHint">Contoh: 192.168.1.105</p>
+        </div>
+        <button class="btn-small" onclick="changeIP()">Ubah IP</button>
+      </div>
+      <div class="ip-input-row">
+        <input type="text" id="espIP" placeholder="192.168.1.105" />
+        <button class="btn-primary" onclick="saveIP()">Simpan</button>
+      </div>
+      <div class="meta-row">
+        <span id="espTime">Jam ESP32: --:--</span>
+        <span id="lastUpdate">Update: -</span>
+      </div>
+    </section>
 
- <div class="status" id="status">
-  CONNECTING
- </div>
-</header>
+    <!-- TOMBOL CEPAT -->
+    <section class="quick-actions">
+      <button class="btn-danger" onclick="allOff()">⏻ Matikan Semua</button>
+      <button class="btn-secondary" onclick="refreshStatus()">🔄 Refresh</button>
+    </section>
 
-<section class="overview">
+    <!-- 4 KARTU AKAN DI-RENDER LEWAT app.js -->
+    <main id="cardsContainer" class="cards">
+      <p class="loading">Memuat status dari ESP32...</p>
+    </main>
 
- <div class="section">SYSTEM OVERVIEW</div>
+    <footer>
+      <p>Novia Home V2 • Blynk V0-V3 • Scheduler WIB • NTP</p>
+      <p class="small">Pastikan HP & ESP32 di WiFi yang sama.</p>
+    </footer>
+  </div>
 
- <div class="count" id="count">4 Devices</div>
-
- <div class="network">
-  <span>WiFi Connection</span>
-  <span id="wifi">Checking...</span>
- </div>
-
- <div class="network">
-  <span>Blynk Cloud</span>
-  <span id="blynk">Checking...</span>
- </div>
-
- <div class="network">
-  <span>Cloudflare API</span>
-  <span id="cloud">Not checked</span>
- </div>
-
- <div class="network">
-  <span>ESP32 IP</span>
-  <span id="ip">-</span>
- </div>
-
-</section>
-
-<section class="overview cloud-panel">
- <div class="section">CLOUD CONNECTION</div>
- <label for="cloudUrl">Worker URL</label>
- <input id="cloudUrl" type="url" placeholder="https://novia-home-api.example.workers.dev" autocomplete="url">
- <label for="cloudToken">Dashboard token</label>
- <input id="cloudToken" type="password" placeholder="Masukkan DASHBOARD_TOKEN" autocomplete="off">
- <div class="cloud-actions">
-  <button class="btn btn-on" onclick="connectCloud()">CONNECT CLOUD</button>
-  <button class="btn btn-off" onclick="useLocal()">LOCAL MODE</button>
- </div>
- <div class="network"><span>Connection mode</span><span id="mode">LOCAL</span></div>
- <small class="hint">Token disimpan sementara di sesi browser, bukan di source code.</small>
-</section>
-
-<div class="section">DEVICE CONTROL</div>
-
-<div class="grid" id="devices"></div>
-
-<div class="actions">
-
- <button class="btn btn-on"
- onclick="master(true)">
- ALL ON
- </button>
-
- <button class="btn btn-off"
- onclick="master(false)">
- ALL OFF
- </button>
-
-</div>
-
-<div class="footer">
- NOVIA HOME · ESP32 SMART SYSTEM
-</div>
-
-</div>
-
-<script src="/app.js" defer></script>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
 </body>
 </html>

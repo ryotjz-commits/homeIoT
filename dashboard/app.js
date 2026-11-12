@@ -1,141 +1,219 @@
-const names = ["Lampu Luar", "Lampu Tengah", "Lampu Kamar", "Kipas"];
-const icons = ["☀", "◉", "◉", "〰"];
-let states = [false, false, false, false];
-let busy = false;
-let mode = "local";
-let cloudBase = "";
-let cloudToken = "";
+// ===== CONFIG =====
+let ESP_IP = localStorage.getItem('novia_esp_ip') || '';
+let channels = []; // diisi dari /api/status
+let isLoading = false;
 
-const $ = id => document.getElementById(id);
+// Info tiap channel: harus sama urutannya dengan firmware
+const CHANNEL_META = [
+  { id: 0, icon: '💡', subtitle: 'Lampu Depan • Blynk V0 • Relay 1' },
+  { id: 1, icon: '💡', subtitle: 'Lampu Tengah • Blynk V1 • Relay 2' },
+  { id: 2, icon: '💡', subtitle: 'Lampu Belakang • Blynk V2 • Relay 3' },
+  { id: 3, icon: '🌀', subtitle: 'Kipas Angin • Blynk V3 • Relay 4' },
+];
 
-function render() {
-  $("devices").innerHTML = names.map((name, i) => `
-    <div class="device">
-      <div class="device-top">
-        <span class="device-icon">${icons[i]}</span>
-        <button class="switch ${states[i] ? "on" : ""}" onclick="toggle(${i})" aria-label="Toggle ${name}"></button>
-      </div>
-      <div class="device-name">${name}</div>
-      <div class="device-state">${states[i] ? "Perangkat aktif" : "Perangkat mati"}</div>
-    </div>`).join("");
-  $("count").textContent = `${states.filter(Boolean).length}/4 Perangkat Aktif`;
+// ===== HELPER =====
+function apiUrl(path) {
+  if (!ESP_IP) return null;
+  let ip = ESP_IP.replace('http://', '').replace('https://', '').replace(/\/$/, '');
+  return `http://${ip}${path}`;
 }
 
-function setMode(next) {
-  mode = next;
-  $("mode").textContent = next === "cloud" ? "CLOUD" : "LOCAL";
-  $("status").textContent = next === "cloud" ? "CLOUD MODE" : "LOCAL MODE";
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-function cloudHeaders(json = false) {
-  const headers = { Authorization: `Bearer ${cloudToken}` };
-  if (json) headers["Content-Type"] = "application/json";
-  return headers;
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function timeToInput(hour, minute) {
+  return `${pad(hour)}:${pad(minute)}`;
 }
 
-async function cloudFetch(path, options = {}) {
-  const response = await fetch(`${cloudBase}${path}`, {
-    ...options,
-    headers: { ...cloudHeaders(!!options.body), ...(options.headers || {}) }
-  });
-  if (!response.ok) throw new Error(`Cloud API ${response.status}`);
-  return response;
+function inputToTime(val) {
+  const [h, m] = val.split(':').map(Number);
+  return { h: h || 0, m: m || 0 };
 }
 
-async function connectCloud() {
-  const url = $("cloudUrl").value.trim().replace(/\/$/, "");
-  const token = $("cloudToken").value.trim();
-  if (!/^https:\/\//i.test(url) || token.length < 12) {
-    $("status").textContent = "URL / TOKEN TIDAK VALID";
+// ===== IP HANDLING =====
+function saveIP() {
+  const val = document.getElementById('espIP').value.trim();
+  if (!val) { showToast('Isi IP ESP32 dulu'); return; }
+  ESP_IP = val;
+  localStorage.setItem('novia_esp_ip', val);
+  showToast('IP disimpan: ' + val);
+  refreshStatus();
+}
+
+function changeIP() {
+  document.getElementById('espIP').focus();
+  showToast('Ubah IP lalu tekan Simpan');
+}
+
+// ===== RENDER CARDS =====
+function renderCards() {
+  const container = document.getElementById('cardsContainer');
+  if (!channels.length) {
+    container.innerHTML = '<p class="loading">Belum ada data. Cek IP ESP32 & WiFi.</p>';
     return;
   }
-  cloudBase = url;
-  cloudToken = token;
-  try {
-    const response = await cloudFetch("/api/state");
-    const data = await response.json();
-    sessionStorage.setItem("noviaCloudUrl", cloudBase);
-    sessionStorage.setItem("noviaCloudToken", cloudToken);
-    setMode("cloud");
-    applyState(data);
-    $("status").textContent = "CLOUD CONNECTED";
-    await update();
-  } catch (error) {
-    cloudToken = "";
-    $("status").textContent = "CLOUD CONNECTION FAILED";
-    console.error(error);
+
+  container.innerHTML = channels.map(ch => {
+    const meta = CHANNEL_META[ch.id] || CHANNEL_META[0];
+    const isOn = ch.state === 1;
+    const schedOn = ch.sched_enabled === 1;
+
+    return `
+    <section class="card device-card ${isOn ? 'on' : ''}">
+      <div class="card-top">
+        <div class="icon">${meta.icon}</div>
+        <div>
+          <h2>${ch.name}</h2>
+          <p>${meta.subtitle}</p>
+        </div>
+        <span class="badge ${isOn ? 'on' : ''}">${isOn ? '● ON' : '○ OFF'}</span>
+      </div>
+
+      <div class="toggle-row">
+        <span>Status: <b>${isOn ? 'Menyala' : 'Mati'}</b></span>
+        <label class="switch">
+          <input type="checkbox" ${isOn ? 'checked' : ''} onchange="toggleChannel(${ch.id}, this.checked)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="sched-head">
+        <h3>⏰ Jadwal Otomatis</h3>
+        <label>
+          <input type="checkbox" ${schedOn ? 'checked' : ''} onchange="toggleSchedEnabled(${ch.id}, this.checked)" />
+          Aktif
+        </label>
+      </div>
+
+      <div class="time-grid">
+        <div class="time-box">
+          <label>Jam ON</label>
+          <input type="time" id="on-${ch.id}" value="${timeToInput(ch.onHour, ch.onMinute)}" />
+        </div>
+        <div class="time-box">
+          <label>Jam OFF</label>
+          <input type="time" id="off-${ch.id}" value="${timeToInput(ch.offHour, ch.offMinute)}" />
+        </div>
+      </div>
+
+      <button class="btn-save" onclick="saveSchedule(${ch.id})">Simpan Jadwal ${ch.name}</button>
+    </section>
+    `;
+  }).join('');
+}
+
+// ===== API CALLS =====
+async function refreshStatus() {
+  if (!ESP_IP) {
+    document.getElementById('cardsContainer').innerHTML =
+      '<p class="loading">Masukkan IP ESP32 dulu di atas, contoh 192.168.1.105</p>';
+    return;
   }
-}
+  if (isLoading) return;
+  isLoading = true;
 
-function useLocal() {
-  setMode("local");
-  update();
-}
-
-function applyState(data) {
-  if (Array.isArray(data.relays) && data.relays.length === 4) states = data.relays.map(Boolean);
-  render();
-  $("wifi").textContent = data.wifi ? "Connected" : "Disconnected";
-  $("wifi").className = data.wifi ? "online" : "offline";
-  $("blynk").textContent = data.blynk ? "Connected" : "Disconnected";
-  $("blynk").className = data.blynk ? "online" : "offline";
-  $("ip").textContent = data.ip || "-";
-  if ($("cloud")) { $("cloud").textContent = data.cloud ? "Connected" : (mode === "cloud" ? "Connected" : "Not checked"); $("cloud").className = data.cloud || mode === "cloud" ? "online" : "offline"; }
-  if (mode === "cloud") {
-    const stale = !data.receivedAt || (Date.now() - data.receivedAt > 20000);
-    $("status").textContent = stale ? "DEVICE OFFLINE / STALE" : (data.wifi ? "DEVICE ONLINE" : "DEVICE WIFI OFFLINE");
-  } else $("status").textContent = data.wifi ? "SYSTEM ONLINE" : "WIFI OFFLINE";
-}
-
-async function command(ch, value) {
-  if (busy) return;
-  busy = true;
   try {
-    if (mode === "cloud") {
-      const path = ch === "all" ? "/api/all" : "/api/relay";
-      const body = ch === "all" ? { value } : { ch, value };
-      await cloudFetch(path, { method: "POST", body: JSON.stringify(body) });
-      $("status").textContent = "COMMAND QUEUED";
-    } else {
-      const path = ch === "all" ? `/api/all?value=${value}` : `/api/relay?ch=${ch}&value=${value}`;
-      const response = await fetch(path, { cache: "no-store" });
-      if (!response.ok) throw new Error("Local command failed");
-      await update();
+    const res = await fetch(apiUrl('/api/status'), { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    // Data dari firmware: { channels: [...] }
+    channels = data.channels || [];
+    renderCards();
+
+    document.getElementById('connStatus').classList.add('online');
+    document.getElementById('connStatus').style.color = '#2ed573';
+    document.getElementById('lastUpdate').textContent = 'Update: ' + new Date().toLocaleTimeString('id-ID');
+
+    // Kalau firmware kirim jam, tampilkan. Kalau tidak, pakai jam HP
+    if (data.time) {
+      document.getElementById('espTime').textContent = 'Jam: ' + data.time;
     }
-  } catch (error) {
-    $("status").textContent = "COMMAND ERROR";
-    console.error(error);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('connStatus').classList.remove('online');
+    document.getElementById('connStatus').style.color = '#ff4757';
+    showToast('Gagal connect ke ESP32. Cek IP & WiFi');
   } finally {
-    busy = false;
+    isLoading = false;
   }
 }
 
-function toggle(i) { command(i, states[i] ? 0 : 1); }
-function master(on) { command("all", on ? 1 : 0); }
-
-async function update() {
+async function toggleChannel(ch, checked) {
   try {
-    let data;
-    if (mode === "cloud") {
-      const response = await cloudFetch("/api/state");
-      data = await response.json();
-    } else {
-      const response = await fetch("/api/state", { cache: "no-store" });
-      if (!response.ok) throw new Error("Local offline");
-      data = await response.json();
-    }
-    applyState(data);
-  } catch (error) {
-    $("status").textContent = mode === "cloud" ? "CLOUD / DEVICE OFFLINE" : "CONNECTION LOST";
-    console.warn(error);
+    const res = await fetch(apiUrl(`/api/set?ch=${ch}&state=${checked ? 1 : 0}`));
+    const data = await res.json();
+    channels = data.channels || channels;
+    renderCards();
+    showToast((CHANNEL_META[ch].subtitle.split('•')[0] || '') + (checked ? ' ON' : ' OFF'));
+  } catch (e) {
+    showToast('Gagal ubah status');
+    refreshStatus();
   }
 }
 
-render();
-const savedUrl = sessionStorage.getItem("noviaCloudUrl");
-const savedToken = sessionStorage.getItem("noviaCloudToken");
-if (savedUrl) $("cloudUrl").value = savedUrl;
-if (savedToken) $("cloudToken").value = savedToken;
-update();
-setInterval(update, 2500);
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(console.warn);
+async function allOff() {
+  if (!confirm('Matikan semua lampu + kipas?')) return;
+  try {
+    const res = await fetch(apiUrl('/api/alloff'));
+    const data = await res.json();
+    channels = data.channels || channels;
+    renderCards();
+    showToast('Semua dimatikan');
+  } catch (e) {
+    showToast('Gagal matikan semua');
+  }
+}
+
+async function toggleSchedEnabled(ch, enabled) {
+  // Simpan langsung biar tidak perlu tekan tombol Simpan 2x
+  await saveSchedule(ch, enabled);
+}
+
+async function saveSchedule(ch, forcedEnabled = null) {
+  const onVal = document.getElementById(`on-${ch}`).value;
+  const offVal = document.getElementById(`off-${ch}`).value;
+  if (!onVal || !offVal) { showToast('Isi Jam ON & OFF dulu'); return; }
+
+  const on = inputToTime(onVal);
+  const off = inputToTime(offVal);
+
+  // Cari status enabled saat ini
+  let enabled = forcedEnabled;
+  if (enabled === null) {
+    const chData = channels.find(c => c.id === ch);
+    enabled = chData ? chData.sched_enabled === 1 : true;
+    // Kalau user klik tombol Simpan, anggap dia mau aktifkan
+    // Tapi kalau checkbox di-uncheck sebelumnya, forcedEnabled sudah handle
+  }
+
+  const url = `/api/schedule?ch=${ch}&enabled=${enabled ? 1 : 0}&onH=${on.h}&onM=${on.m}&offH=${off.h}&offM=${off.m}`;
+
+  try {
+    const res = await fetch(apiUrl(url));
+    const data = await res.json();
+    channels = data.channels || channels;
+    renderCards();
+    showToast(`Jadwal ${channels[ch]?.name || ''} disimpan: ${onVal} - ${offVal}`);
+  } catch (e) {
+    showToast('Gagal simpan jadwal');
+  }
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  if (ESP_IP) {
+    document.getElementById('espIP').value = ESP_IP;
+  }
+  refreshStatus();
+  // Auto refresh tiap 10 detik
+  setInterval(refreshStatus, 10000);
+});
