@@ -43,11 +43,13 @@ jobs:
         run: |
           pio run -e esp32dev
 
-      - name: Siapkan file .bin untuk download
+            - name: Siapkan file .bin untuk download
         run: |
           mkdir -p dist
           cp .pio/build/esp32dev/firmware.bin dist/NoviaHome_V2.bin
-          cp .pio/build/esp32dev/firmware.elf dist/NoviaHome_V2.elf || true
+          cp .pio/build/esp32dev/bootloader.bin dist/bootloader.bin
+          cp .pio/build/esp32dev/partitions.bin dist/partitions.bin
+          cp .pio/build/esp32dev/boot_app0.bin dist/boot_app0.bin
           ls -lh dist/
 
       - name: Upload Firmware .BIN
