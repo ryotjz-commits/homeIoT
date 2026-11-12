@@ -1,8 +1,0 @@
-#pragma once
-
-#define WIFI_SSID "NAMA_WIFI_KAMU"
-#define WIFI_PASS "PASSWORD_WIFI_KAMU"
-
-#define BLYNK_TEMPLATE_ID "TMPLxxxxxx"
-#define BLYNK_TEMPLATE_NAME "Novia Home"
-#define BLYNK_AUTH_TOKEN "TOKEN_BLYNK_KAMU"
