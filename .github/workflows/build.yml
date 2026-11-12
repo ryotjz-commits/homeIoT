@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch: # biar bisa di-run manual dari HP
+  workflow_dispatch:
 
 jobs:
   build:
@@ -24,9 +24,7 @@ jobs:
         run: |
           pip install -U platformio
 
-      - name: Generate secrets.h dari 【entity-GitHub¦canonical_name=GitHub】 Secrets
-        # secrets.h TIDAK di-commit ke GitHub, jadi kita generate saat build
-        # Isi Secrets di: Repo > Settings > Secrets and variables > Actions
+      - name: Generate secrets.h dari Secrets
         run: |
           cat > include/secrets.h << 'EOF'
           #pragma once
@@ -36,14 +34,14 @@ jobs:
           #define BLYNK_TEMPLATE_NAME "${{ secrets.BLYNK_TEMPLATE_NAME }}"
           #define BLYNK_AUTH_TOKEN "${{ secrets.BLYNK_AUTH_TOKEN }}"
           EOF
-          echo "=== secrets.h generated (isi disembunyikan) ==="
+          echo "=== secrets.h generated ==="
           ls -lh include/secrets.h
 
       - name: Build Firmware ESP32
         run: |
           pio run -e esp32dev
 
-            - name: Siapkan file .bin untuk download
+      - name: Siapkan file .bin untuk download
         run: |
           mkdir -p dist
           cp .pio/build/esp32dev/firmware.bin dist/NoviaHome_V2.bin
