@@ -1,0 +1,58 @@
+name: Build Novia Home V2 Firmware
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # biar bisa di-run manual dari HP
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: |
+          pip install -U platformio
+
+      - name: Generate secrets.h dari 【entity-GitHub¦canonical_name=GitHub】 Secrets
+        # secrets.h TIDAK di-commit ke GitHub, jadi kita generate saat build
+        # Isi Secrets di: Repo > Settings > Secrets and variables > Actions
+        run: |
+          cat > include/secrets.h << 'EOF'
+          #pragma once
+          #define WIFI_SSID "${{ secrets.WIFI_SSID }}"
+          #define WIFI_PASS "${{ secrets.WIFI_PASS }}"
+          #define BLYNK_TEMPLATE_ID "${{ secrets.BLYNK_TEMPLATE_ID }}"
+          #define BLYNK_TEMPLATE_NAME "${{ secrets.BLYNK_TEMPLATE_NAME }}"
+          #define BLYNK_AUTH_TOKEN "${{ secrets.BLYNK_AUTH_TOKEN }}"
+          EOF
+          echo "=== secrets.h generated (isi disembunyikan) ==="
+          ls -lh include/secrets.h
+
+      - name: Build Firmware ESP32
+        run: |
+          pio run -e esp32dev
+
+      - name: Siapkan file .bin untuk download
+        run: |
+          mkdir -p dist
+          cp .pio/build/esp32dev/firmware.bin dist/NoviaHome_V2.bin
+          cp .pio/build/esp32dev/firmware.elf dist/NoviaHome_V2.elf || true
+          ls -lh dist/
+
+      - name: Upload Firmware .BIN
+        uses: actions/upload-artifact@v4
+        with:
+          name: NoviaHome_V2-firmware
+          path: dist/
+          retention-days: 30
