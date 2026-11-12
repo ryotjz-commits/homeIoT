@@ -1,7 +1,0 @@
-name = "novia-home-api"
-main = "worker.js"
-compatibility_date = "2026-11-11"
-
-[[kv_namespaces]]
-binding = "NOVIA_KV"
-id = "GANTI_DENGAN_KV_NAMESPACE_ID"
